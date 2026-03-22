@@ -50,6 +50,12 @@ namespace mlm_ref.Services
             payload: new { user_ref = userRef }
         );
     }
+
+    public async Task<CodeView> CreateHead(int headCount)
+    {
+        // Implementation for creating a head
+        return new CodeView();
+    }
 }
 
 }

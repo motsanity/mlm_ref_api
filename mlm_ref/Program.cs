@@ -8,62 +8,60 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
-builder.Services.AddControllers();
-
-// Swagger
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddMediatR(typeof(Program));
-
-// ---------------------------
-// Register your custom services
-// ---------------------------
-
-builder.Services.Configure<RabbitMqConfig>(
-    builder.Configuration.GetSection("RabbitMQ"));
-
-//get the RabbitMQ configuration
-var rabbitMqConfig = builder.Configuration.GetSection("RabbitMQ").Get<RabbitMqConfig>();
-Console.WriteLine($"RabbitMQ Host: {rabbitMqConfig.HostName}");
-
-// 1. DbConnectionFactory
-builder.Services.AddSingleton<DbConnectionFactory>();
-
-// 2. RabbitMQ publisher
-builder.Services.AddSingleton<RabbitMqPublisher>();
-
-// 3. Redis connection
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+// --- 1. ADD CORS SERVICE ---
+builder.Services.AddCors(options =>
 {
-    var config = builder.Configuration.GetSection("Redis")["Configuration"] ?? "localhost:6379";
-    Console.WriteLine($"Connecting to Redis at: {config}");
-    return ConnectionMultiplexer.Connect(config);
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
 });
 
-//get the Redis configuration
-var redisConfig = builder.Configuration.GetSection("Redis")["Configuration"];
-Console.WriteLine($"Redis Configuration: {redisConfig}");
-
+builder.Services.AddControllersWithViews();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddMediatR(typeof(Program));
+
+// Register custom services
+builder.Services.Configure<RabbitMqConfig>(builder.Configuration.GetSection("RabbitMQ"));
+builder.Services.AddSingleton<DbConnectionFactory>();
+builder.Services.AddSingleton<RabbitMqPublisher>();
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var config = builder.Configuration.GetSection("Redis")["Configuration"] ?? "localhost:6379";
+    return ConnectionMultiplexer.Connect(config);
+});
+
 builder.Services.AddScoped<PlacementService>();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- 2. CONFIGURE PIPELINE ORDER ---
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// IMPORTANT: UseCors must be AFTER UseRouting and BEFORE UseAuthorization/Endpoints
 app.UseRouting();
+
+// This allows your HTML/JS file to talk to the API
+app.UseCors("AllowAll"); 
+
+// If testing locally with plain HTML, you might want to comment this out 
+// if your browser complains about SSL certificates
+// app.UseHttpsRedirection(); 
 
 app.UseAuthorization();
 
@@ -73,6 +71,5 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
-
 
 app.Run();

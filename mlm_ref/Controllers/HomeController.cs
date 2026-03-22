@@ -16,29 +16,35 @@ public class HomeController : Controller
     }
 
     [HttpPost("register-and-activate")]
-public async Task<IActionResult> Register(RegisterDto dto)
-{
-    await _service.RegisterMemberAsync(new
+    public async Task<IActionResult> Register(
+        [FromQuery] string userName,
+        [FromQuery] string userRef, 
+        [FromQuery] string activationCode,
+        [FromQuery] string sponsorRef, 
+        [FromQuery] string placementRef, 
+        [FromQuery] char memberPosition)
     {
-        username = dto.Username,
-        owner_id = dto.OwnerId,
-        member_code_ref = dto.UserRef, // The 'ref' from member_codes table
-        activation_code = dto.ActivationCode, // The actual binary/hex code
-        sponsor_ref = dto.SponsorRef,
-        placement_ref = dto.PlacementRef,
-        position = dto.Position
-    });
+        // The service logic stays the same
+        await _service.RegisterMemberAsync(new {
+            username = userName,
+            owner_id = userName,
+            member_code_ref = userRef,
+            activation_code = activationCode,
+            sponsor_ref = sponsorRef,
+            placement_ref = placementRef,
+            position = memberPosition
+        });
 
-    return Ok(new { message = "Registration and Activation queued" });
-}
+        return Ok(new { message = "Registration and Activation queued" });
+    }
 
     [HttpPost("activate")]
-    public async Task<IActionResult> Activate(ActivateDto dto)
+    public async Task<IActionResult> Activate(string userRef, string activationCode)
     {
         await _service.ActivateMemberAsync(new
         {
-            user_ref = dto.UserRef,
-            activation_code = dto.ActivationCode
+            user_ref = userRef,
+            activation_code = activationCode
         });
 
         return Ok(new { message = "Activation queued" });
@@ -50,4 +56,17 @@ public async Task<IActionResult> Register(RegisterDto dto)
         await _service.ProcessSystemQueue();
         return Ok(new { message = "System queue processing queued" });
     }
+
+    [HttpPost("create-head")]
+    public async Task<IActionResult> CreateHead([FromQuery] int headCount)
+    {
+        if (!new[] { 1, 3, 7, 15, 31 }.Contains(headCount))        {
+            return BadRequest(new { message = "Invalid head count. Allowed values are 1, 3, 7, 15, 31." });
+        }
+
+        await _service.CreateHead(headCount);
+        return Ok(new { message = "Head creation queued" });
+    }
+
+
 }
